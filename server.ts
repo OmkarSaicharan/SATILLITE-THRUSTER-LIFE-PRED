@@ -64,20 +64,37 @@ async function startServer() {
       if (groq) {
         try {
           const completion = await groq.chat.completions.create({
-            messages: [
-              {
-                role: "system",
-                content: "You are a satellite propulsion and health analysis expert. You must return only a JSON object matching the requested schema.",
-              },
-              {
-                role: "user",
-                content: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
-              },
-            ],
-            model: "llama-3.3-70b-versatile",
-            response_format: { type: "json_object" },
-          });
-          return res.json(JSON.parse(completion.choices[0].message.content || "{}"));
+  messages: [
+    {
+      role: "system",
+      content: "You are a satellite propulsion and health analysis expert. You must return only a JSON object matching the requested schema.",
+    },
+    {
+      role: "user",
+      content: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
+    },
+  ],
+  model: "llama-3.3-70b-versatile",
+  response_format: { type: "json_object" },
+});
+
+const content = completion.choices[0]?.message?.content;
+
+// If content is already an object, send it directly.
+// If it's a string, try to parse once; otherwise fall back.
+let result: any;
+if (typeof content === "string") {
+  try {
+    result = JSON.parse(content);
+  } catch {
+    result = content;
+  }
+} else {
+  result = content ?? {};
+}
+
+return res.json(result);
+
         } catch (e) {
           console.error("Groq attempt failed:", e);
           if (!gemini) throw e;
@@ -88,27 +105,50 @@ async function startServer() {
       // Priority 2: Gemini
       if (gemini) {
         const response = await gemini.models.generateContent({
-          model: "gemini-3.1-pro-preview",
-          contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                estimatedLifespan: { type: Type.NUMBER },
-                engineLifeRemaining: { type: Type.NUMBER },
-                explosionRisk: { type: Type.NUMBER },
-                failureProbability: { type: Type.NUMBER },
-                riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
-                risks: { type: Type.ARRAY, items: { type: Type.STRING } },
-                recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
-                summary: { type: Type.STRING }
-              },
-              required: ["estimatedLifespan", "engineLifeRemaining", "explosionRisk", "failureProbability", "riskLevel", "risks", "recommendations", "summary"]
-            }
-          }
-        });
-        return res.json(JSON.parse(response.text || "{}"));
+  model: "gemini-3.1-pro-preview",
+  contents: [
+    {
+      role: "user",
+      parts: [
+        {
+          text: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`
+        }
+      ]
+    }
+  ],
+  generationConfig: {
+    responseMimeType: "application/json",
+    responseSchema: {
+      type: Type.OBJECT,
+      properties: {
+        estimatedLifespan: { type: Type.NUMBER },
+        engineLifeRemaining: { type: Type.NUMBER },
+        explosionRisk: { type: Type.NUMBER },
+        failureProbability: { type: Type.NUMBER },
+        riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
+        risks: { type: Type.ARRAY, items: { type: Type.STRING } },
+        recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+        summary: { type: Type.STRING }
+      },
+      required: [
+        "estimatedLifespan",
+        "engineLifeRemaining",
+        "explosionRisk",
+        "failureProbability",
+        "riskLevel",
+        "risks",
+        "recommendations",
+        "summary"
+      ]
+    }
+  }
+});
+
+// In structured-output mode, the SDK gives you an object.
+// Adjust this line based on the exact return type of @google/genai.
+const result = (response as any).output ?? (response as any).candidates?.[0]?.content ?? response;
+return res.json(result);
+
       }
 
     } catch (error) {
