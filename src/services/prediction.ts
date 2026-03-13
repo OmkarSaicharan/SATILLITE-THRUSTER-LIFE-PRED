@@ -147,7 +147,13 @@ export async function analyzeSatelliteRisk(data: SatelliteData): Promise<Predict
     return result;
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
-    throw new Error("Failed to analyze mission risk using Gemini AI");
+    if (error instanceof Error && error.message.includes("Gemini API Error")) {
+      throw error;
+    }
+    if (error instanceof Error && error.message.includes("Gemini API key is not configured")) {
+      throw error;
+    }
+    throw new Error(`Analysis Failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
