@@ -3,8 +3,27 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
 import Database from "better-sqlite3";
+import Groq from "groq-sdk";
+import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
+
+// Lazy initialization helpers
+let groqClient: Groq | null = null;
+function getGroq() {
+  if (!groqClient && process.env.GROQ_API_KEY) {
+    groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return groqClient;
+}
+
+let geminiClient: GoogleGenAI | null = null;
+function getGemini() {
+  if (!geminiClient && process.env.GEMINI_API_KEY) {
+    geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return geminiClient;
+}
 
 const db_sqlite = new Database("satellite_data.db");
 
@@ -26,6 +45,77 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // API route for AI analysis (Supports Groq or Gemini)
+  app.post("/api/analyze", async (req, res) => {
+    try {
+      const { data } = req.body;
+      
+      const groq = getGroq();
+      const gemini = getGemini();
+
+      if (!groq && !gemini) {
+        return res.status(500).json({ 
+          error: "No AI provider configured. Please set GROQ_API_KEY or GEMINI_API_KEY in your environment." 
+        });
+      }
+
+      // Priority 1: Groq
+      if (groq) {
+        try {
+          const completion = await groq.chat.completions.create({
+            messages: [
+              {
+                role: "system",
+                content: "You are a satellite propulsion and health analysis expert. You must return only a JSON object matching the requested schema.",
+              },
+              {
+                role: "user",
+                content: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
+              },
+            ],
+            model: "llama-3.3-70b-versatile",
+            response_format: { type: "json_object" },
+          });
+          return res.json(JSON.parse(completion.choices[0].message.content || "{}"));
+        } catch (e) {
+          console.error("Groq attempt failed:", e);
+          if (!gemini) throw e;
+          // Fallback to Gemini if Groq fails and Gemini is available
+        }
+      }
+
+      // Priority 2: Gemini
+      if (gemini) {
+        const response = await gemini.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                estimatedLifespan: { type: Type.NUMBER },
+                engineLifeRemaining: { type: Type.NUMBER },
+                explosionRisk: { type: Type.NUMBER },
+                failureProbability: { type: Type.NUMBER },
+                riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
+                risks: { type: Type.ARRAY, items: { type: Type.STRING } },
+                recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+                summary: { type: Type.STRING }
+              },
+              required: ["estimatedLifespan", "engineLifeRemaining", "explosionRisk", "failureProbability", "riskLevel", "risks", "recommendations", "summary"]
+            }
+          }
+        });
+        return res.json(JSON.parse(response.text || "{}"));
+      }
+
+    } catch (error) {
+      console.error("Analysis Error:", error);
+      res.status(500).json({ error: "Failed to analyze mission risk using AI" });
+    }
+  });
 
   // API route for saving prediction history (Gemini results)
   app.post("/api/save-prediction", async (req, res) => {
