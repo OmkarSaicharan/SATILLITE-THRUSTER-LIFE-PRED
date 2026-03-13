@@ -90,8 +90,8 @@ export const RiskDashboard: React.FC<Props> = ({ result }) => {
           <h3 className="text-sm font-medium mb-6 flex items-center gap-2 text-white/60">
             <Activity size={16} className="text-indigo-400" /> Risk Vector Analysis
           </h3>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[250px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" debounce={100}>
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
                 <PolarGrid stroke="rgba(255,255,255,0.1)" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} />
@@ -111,8 +111,8 @@ export const RiskDashboard: React.FC<Props> = ({ result }) => {
           <h3 className="text-sm font-medium mb-6 flex items-center gap-2 text-white/60">
             <BarChart3 size={16} className="text-orange-400" /> Critical Probability Comparison
           </h3>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[250px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" debounce={100}>
               <BarChart data={barData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} axisLine={false} tickLine={false} />
