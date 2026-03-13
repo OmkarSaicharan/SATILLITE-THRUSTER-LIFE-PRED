@@ -3,10 +3,53 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SatelliteForm } from './components/SatelliteForm';
 import { RiskDashboard } from './components/RiskDashboard';
 import { analyzeSatelliteRisk, SatelliteData, PredictionResult } from './services/prediction';
-import { Sparkles, Info, Globe, Rocket, ShieldAlert, Satellite } from 'lucide-react';
+import { Sparkles, Info, Globe, Rocket, ShieldAlert, Satellite as SatelliteIcon } from 'lucide-react';
 
 import { PredictionHistory } from './components/PredictionHistory';
 import { FailureModes } from './components/FailureModes';
+
+const SatelliteLogo = ({ className, size = 32 }: { className?: string; size?: number }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    {/* Main Body */}
+    <path d="M7 11L11 7L17 13L13 17L7 11Z" />
+    {/* Solar Panels */}
+    <path d="M11 7L15 3" />
+    <path d="M13 17L17 21" />
+    <path d="M7 11L3 7" />
+    <path d="M9 13L5 17" />
+    
+    {/* Signal Arcs */}
+    <motion.path 
+      d="M4 14C3 15 3 17 4 18" 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 0] }}
+      transition={{ duration: 2, repeat: Infinity, delay: 0 }}
+    />
+    <motion.path 
+      d="M6 12C4 14 4 18 6 20" 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 0] }}
+      transition={{ duration: 2, repeat: Infinity, delay: 0.4 }}
+    />
+    <motion.path 
+      d="M8 10C5 13 5 19 8 22" 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 0] }}
+      transition={{ duration: 2, repeat: Infinity, delay: 0.8 }}
+    />
+  </svg>
+);
 
 export default function App() {
   const [isLoading, setIsLoading] = React.useState(false);
@@ -29,10 +72,20 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen p-4 md:p-8 lg:p-12">
-      <div className="atmosphere" />
+    <div className="relative min-h-screen p-4 md:p-8 lg:p-12 overflow-x-hidden">
+      <div className="atmosphere fixed inset-0 z-0" />
       
-      <main className="max-w-4xl mx-auto space-y-16">
+      {/* Cinematic Background Image (Satellite) */}
+      <div className="fixed inset-0 z-[-1] opacity-30 pointer-events-none">
+        <img 
+          src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=2072" 
+          alt="Satellite in Space" 
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+
+      <main className="relative z-10 max-w-4xl mx-auto space-y-16">
         {/* Vertical Header */}
         <header className="text-center space-y-4 pt-12">
           <motion.div
@@ -40,10 +93,7 @@ export default function App() {
             animate={{ opacity: 1, scale: 1 }}
             className="flex flex-col items-center gap-4"
           >
-            <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.1)]">
-              <Satellite className="text-indigo-400" size={32} />
-            </div>
-            <div className="text-xs font-medium tracking-widest uppercase text-white/40">
+            <div className="text-xs font-medium tracking-widest uppercase text-white/60 bg-black/20 backdrop-blur-md px-4 py-1 rounded-full border border-white/10">
               AI-Powered Orbital Intelligence
             </div>
           </motion.div>
@@ -53,7 +103,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="text-5xl md:text-7xl font-light tracking-tight"
           >
-            Satellite<span className="aura-text font-medium">Thrive</span>
+            Satellite<span className="aura-text font-medium">Thrive</span> 🛰️
           </motion.h1>
           
           <motion.p 
