@@ -59,8 +59,13 @@ async function startServer() {
 
   // API route for AI analysis (Supports Groq or Gemini)
   app.post("/api/analyze", async (req, res) => {
+    console.log("Received analysis request for:", req.body?.data?.name);
     try {
       const { data } = req.body;
+      if (!data) {
+        console.error("No data provided in request body");
+        return res.status(400).json({ error: "No data provided" });
+      }
       
       const groq = getGroq();
       const gemini = getGemini();
@@ -136,6 +141,7 @@ async function startServer() {
 
   // API route for saving prediction history (Gemini results)
   app.post("/api/save-prediction", async (req, res) => {
+    console.log("Saving prediction for:", req.body?.name);
     try {
       const { name, riskLevel, estimatedLifespan, failureProbability, summary } = req.body;
 
