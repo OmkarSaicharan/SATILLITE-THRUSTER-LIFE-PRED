@@ -64,7 +64,10 @@ export async function analyzeSatelliteRisk(data: SatelliteData): Promise<Predict
       const contentType = analyzeResponse.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
         const errorData = await analyzeResponse.json();
-        throw new Error(errorData.error || "Failed to analyze mission risk");
+        const msg = errorData.details 
+          ? `${errorData.error}: ${errorData.details}` 
+          : (errorData.error || "Failed to analyze mission risk");
+        throw new Error(msg);
       } else {
         const text = await analyzeResponse.text();
         console.error("Non-JSON error response:", text);

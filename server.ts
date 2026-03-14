@@ -26,7 +26,7 @@ process.on("unhandledRejection", (reason, promise) => {
 let geminiClient: GoogleGenAI | null = null;
 function getGemini() {
   if (!geminiClient && process.env.GEMINI_API_KEY) {
-    geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY.trim() });
   }
   return geminiClient;
 }
@@ -75,7 +75,12 @@ async function startServer() {
 
     // Health check route
     apiRouter.get("/health", (req, res) => {
-      res.json({ status: "ok", env: process.env.NODE_ENV, time: new Date().toISOString() });
+      res.json({ 
+        status: "ok", 
+        env: process.env.NODE_ENV, 
+        gemini: !!process.env.GEMINI_API_KEY,
+        time: new Date().toISOString() 
+      });
     });
 
     // API route for AI analysis (Gemini only)
