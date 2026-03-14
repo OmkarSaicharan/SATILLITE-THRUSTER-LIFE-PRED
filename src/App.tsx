@@ -56,16 +56,6 @@ export default function App() {
   const [result, setResult] = React.useState<PredictionResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [refreshKey, setRefreshKey] = React.useState(0);
-  const [systemStatus, setSystemStatus] = React.useState<{ ok: boolean; groq: boolean } | null>(null);
-
-  React.useEffect(() => {
-    fetch('/api/health')
-      .then(res => res.json())
-      .then(data => {
-        setSystemStatus({ ok: true, groq: data.groq });
-      })
-      .catch(() => setSystemStatus({ ok: false, groq: false }));
-  }, []);
 
   const handleAnalyze = async (data: SatelliteData) => {
     setIsLoading(true);
@@ -107,11 +97,6 @@ export default function App() {
               <div className="text-xs font-medium tracking-widest uppercase text-white/60 bg-black/20 backdrop-blur-md px-4 py-1 rounded-full border border-white/10">
                 AI-Powered Orbital Intelligence
               </div>
-              {systemStatus && (
-                <div className={`text-[10px] px-2 py-0.5 rounded border ${systemStatus.groq ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                  GROQ: {systemStatus.groq ? 'CONNECTED' : 'MISSING KEY'}
-                </div>
-              )}
             </div>
           </motion.div>
           
