@@ -61,8 +61,15 @@ export async function analyzeSatelliteRisk(data: SatelliteData): Promise<Predict
     });
 
     if (!analyzeResponse.ok) {
-      const errorData = await analyzeResponse.json();
-      throw new Error(errorData.error || "Failed to analyze mission risk using Groq AI");
+      const contentType = analyzeResponse.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const errorData = await analyzeResponse.json();
+        throw new Error(errorData.error || "Failed to analyze mission risk");
+      } else {
+        const text = await analyzeResponse.text();
+        console.error("Non-JSON error response:", text);
+        throw new Error(`Server Error (${analyzeResponse.status}): ${text.slice(0, 100)}...`);
+      }
     }
 
     const result = await analyzeResponse.json() as PredictionResult;
