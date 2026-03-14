@@ -1,11 +1,16 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
-import Database from "better-sqlite3";
 import Groq from "groq-sdk";
 import { GoogleGenAI, Type } from "@google/genai";
+
+let Database: any;
+try {
+  Database = (await import("better-sqlite3")).default;
+} catch (e) {
+  console.warn("better-sqlite3 could not be loaded. Database features will be disabled.");
+}
 
 dotenv.config();
 
@@ -37,21 +42,27 @@ function getGemini() {
 
 let db_sqlite: any;
 try {
-  console.log("Initializing SQLite database...");
-  db_sqlite = new Database("satellite_data.db");
-  // Initialize database
-  db_sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS predictions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      risk_level TEXT,
-      estimated_lifespan REAL,
-      failure_probability REAL,
-      summary TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  console.log("Database initialized successfully.");
+  if (Database) {
+    console.log("Initializing SQLite database...");
+    // On Vercel, we can only write to /tmp
+    const dbPath = process.env.VERCEL ? "/tmp/satellite_data.db" : "satellite_data.db";
+    db_sqlite = new Database(dbPath);
+    // Initialize database
+    db_sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        risk_level TEXT,
+        estimated_lifespan REAL,
+        failure_probability REAL,
+        summary TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log(`Database initialized successfully at ${dbPath}.`);
+  } else {
+    console.warn("Database not initialized: better-sqlite3 not loaded.");
+  }
 } catch (err) {
   console.error("Failed to initialize SQLite database:", err);
 }
@@ -212,6 +223,7 @@ async function startServer() {
     // Vite middleware for development
     if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
       console.log("Running in development mode with Vite middleware...");
+      const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
