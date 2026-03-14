@@ -64,9 +64,14 @@ export async function analyzeSatelliteRisk(data: SatelliteData): Promise<Predict
       const contentType = analyzeResponse.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
         const errorData = await analyzeResponse.json();
-        const msg = errorData.details 
-          ? `${errorData.error}: ${errorData.details}` 
-          : (errorData.error || "Failed to analyze mission risk");
+        let msg = errorData.error || "Failed to analyze mission risk";
+        
+        if (errorData.details?.includes("429") || errorData.details?.includes("RESOURCE_EXHAUSTED")) {
+          msg = "AI Quota Exceeded: You've reached the limit for free AI analysis. Please wait a minute or try again later.";
+        } else if (errorData.details) {
+          msg = `${errorData.error}: ${errorData.details}`;
+        }
+        
         throw new Error(msg);
       } else {
         const text = await analyzeResponse.text();

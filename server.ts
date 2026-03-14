@@ -109,28 +109,59 @@ async function startServer() {
         }
 
         // Gemini Analysis
-        console.log("[AI] Attempting analysis with Gemini...");
-        const response = await gemini.models.generateContent({
-          model: "gemini-2.0-flash",
-          contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                estimatedLifespan: { type: Type.NUMBER },
-                engineLifeRemaining: { type: Type.NUMBER },
-                explosionRisk: { type: Type.NUMBER },
-                failureProbability: { type: Type.NUMBER },
-                riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
-                risks: { type: Type.ARRAY, items: { type: Type.STRING } },
-                recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
-                summary: { type: Type.STRING }
-              },
-              required: ["estimatedLifespan", "engineLifeRemaining", "explosionRisk", "failureProbability", "riskLevel", "risks", "recommendations", "summary"]
+        console.log("[AI] Attempting analysis with Gemini (2.0 Flash)...");
+        let response;
+        try {
+          response = await gemini.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  estimatedLifespan: { type: Type.NUMBER },
+                  engineLifeRemaining: { type: Type.NUMBER },
+                  explosionRisk: { type: Type.NUMBER },
+                  failureProbability: { type: Type.NUMBER },
+                  riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
+                  risks: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  summary: { type: Type.STRING }
+                },
+                required: ["estimatedLifespan", "engineLifeRemaining", "explosionRisk", "failureProbability", "riskLevel", "risks", "recommendations", "summary"]
+              }
             }
+          });
+        } catch (error: any) {
+          // If 429 (Quota Exceeded), try 1.5 Flash
+          if (error?.message?.includes("429") || error?.status === "RESOURCE_EXHAUSTED") {
+            console.log("[AI] Gemini 2.0 Quota Exceeded. Falling back to Gemini 1.5 Flash...");
+            response = await gemini.models.generateContent({
+              model: "gemini-1.5-flash",
+              contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.OBJECT,
+                  properties: {
+                    estimatedLifespan: { type: Type.NUMBER },
+                    engineLifeRemaining: { type: Type.NUMBER },
+                    explosionRisk: { type: Type.NUMBER },
+                    failureProbability: { type: Type.NUMBER },
+                    riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
+                    risks: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    summary: { type: Type.STRING }
+                  },
+                  required: ["estimatedLifespan", "engineLifeRemaining", "explosionRisk", "failureProbability", "riskLevel", "risks", "recommendations", "summary"]
+                }
+              }
+            });
+          } else {
+            throw error;
           }
-        });
+        }
         
         const text = response.text;
         if (!text) throw new Error("Gemini returned an empty response");
