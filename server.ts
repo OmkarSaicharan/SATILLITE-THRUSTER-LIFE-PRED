@@ -1,12 +1,22 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
 import Database from "better-sqlite3";
 import Groq from "groq-sdk";
 import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
+
+// Global error handlers
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
 
 // Lazy initialization helpers
 let groqClient: Groq | null = null;
@@ -27,6 +37,7 @@ function getGemini() {
 
 let db_sqlite: any;
 try {
+  console.log("Initializing SQLite database...");
   db_sqlite = new Database("satellite_data.db");
   // Initialize database
   db_sqlite.exec(`
@@ -40,9 +51,9 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  console.log("Database initialized successfully.");
 } catch (err) {
   console.error("Failed to initialize SQLite database:", err);
-  // Fallback to a mock or just log the error
 }
 
 async function startServer() {
@@ -198,30 +209,54 @@ async function startServer() {
 
     app.use("/api", apiRouter);
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
+    // Vite middleware for development
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      console.log("Running in development mode with Vite middleware...");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      console.log("Running in production mode...");
+      const distPath = path.join(process.cwd(), "dist");
+      
+      if (fs.existsSync(distPath)) {
+        app.use(express.static(distPath));
+        app.get("*", (req, res) => {
+          res.sendFile(path.join(distPath, "index.html"));
+        });
+      } else {
+        console.warn("Dist folder not found! Serving a fallback page.");
+        app.get("*", (req, res) => {
+          if (req.url.startsWith("/api")) return res.status(404).json({ error: "API route not found" });
+          res.status(200).send(`
+            <html>
+              <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #0a0a0a; color: white;">
+                <h1>SatelliteThrive</h1>
+                <p>Application is starting up or building. Please wait...</p>
+                <script>setTimeout(() => window.location.reload(), 5000);</script>
+              </body>
+            </html>
+          `);
+        });
+      }
+    }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-    console.log("API routes registered: /api/health, /api/analyze, /api/save-prediction, /api/history");
-  });
+    // Only start the server if we're not in a serverless environment (like Vercel)
+    if (!process.env.VERCEL) {
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://0.0.0.0:${PORT}`);
+        console.log("API routes registered: /api/health, /api/analyze, /api/save-prediction, /api/history");
+      });
+    }
 
+    return app;
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
   }
 }
 
-startServer();
+export const appPromise = startServer();
+export default appPromise;
