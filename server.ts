@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
-import Groq from "groq-sdk";
 import { GoogleGenAI, Type } from "@google/genai";
 
 let Database: any;
@@ -24,14 +23,6 @@ process.on("unhandledRejection", (reason, promise) => {
 });
 
 // Lazy initialization helpers
-let groqClient: Groq | null = null;
-function getGroq() {
-  if (!groqClient && process.env.GROQ_API_KEY) {
-    groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  }
-  return groqClient;
-}
-
 let geminiClient: GoogleGenAI | null = null;
 function getGemini() {
   if (!geminiClient && process.env.GEMINI_API_KEY) {
@@ -87,15 +78,14 @@ async function startServer() {
       res.json({ status: "ok", env: process.env.NODE_ENV, time: new Date().toISOString() });
     });
 
-    // API route for AI analysis (Supports Groq or Gemini)
+    // API route for AI analysis (Gemini only)
     apiRouter.post("/analyze", async (req, res) => {
       const satelliteName = req.body?.data?.name || "Unknown Satellite";
       console.log(`[AI] Received analysis request for: ${satelliteName}`);
       
-      // Log presence of API keys (but not the keys themselves)
-      const hasGroq = !!process.env.GROQ_API_KEY;
+      // Log presence of API key (but not the key itself)
       const hasGemini = !!process.env.GEMINI_API_KEY;
-      console.log(`[AI] API Keys check - Groq: ${hasGroq}, Gemini: ${hasGemini}`);
+      console.log(`[AI] API Key check - Gemini: ${hasGemini}`);
 
       try {
         const { data } = req.body;
@@ -104,76 +94,43 @@ async function startServer() {
           return res.status(400).json({ error: "No data provided" });
         }
         
-        const groq = getGroq();
         const gemini = getGemini();
 
-        if (!groq && !gemini) {
-          console.error("[AI] No AI provider configured. Missing GROQ_API_KEY and GEMINI_API_KEY.");
+        if (!gemini) {
+          console.error("[AI] No AI provider configured. Missing GEMINI_API_KEY.");
           return res.status(500).json({ 
             error: "No AI provider configured. Please set GEMINI_API_KEY in your Vercel/Environment settings." 
           });
         }
 
-        // Priority 1: Groq
-        if (groq) {
-          console.log("[AI] Attempting analysis with Groq...");
-          try {
-            const completion = await groq.chat.completions.create({
-              messages: [
-                {
-                  role: "system",
-                  content: "You are a satellite propulsion and health analysis expert. You must return only a JSON object matching the requested schema.",
-                },
-                {
-                  role: "user",
-                  content: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
-                },
-              ],
-              model: "llama-3.3-70b-versatile",
-              response_format: { type: "json_object" },
-            });
-            
-            const content = completion.choices[0]?.message?.content;
-            if (!content) throw new Error("Groq returned an empty response");
-            console.log("[AI] Groq analysis successful.");
-            return res.json(JSON.parse(content));
-          } catch (e) {
-            console.error("[AI] Groq attempt failed:", e);
-            if (!gemini) throw e;
-            console.log("[AI] Falling back to Gemini...");
-          }
-        }
-
-        // Priority 2: Gemini
-        if (gemini) {
-          console.log("[AI] Attempting analysis with Gemini...");
-          const response = await gemini.models.generateContent({
-            model: "gemini-2.0-flash", // Using a more widely available model
-            contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  estimatedLifespan: { type: Type.NUMBER },
-                  engineLifeRemaining: { type: Type.NUMBER },
-                  explosionRisk: { type: Type.NUMBER },
-                  failureProbability: { type: Type.NUMBER },
-                  riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
-                  risks: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  summary: { type: Type.STRING }
-                },
-                required: ["estimatedLifespan", "engineLifeRemaining", "explosionRisk", "failureProbability", "riskLevel", "risks", "recommendations", "summary"]
-              }
+        // Gemini Analysis
+        console.log("[AI] Attempting analysis with Gemini...");
+        const response = await gemini.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                estimatedLifespan: { type: Type.NUMBER },
+                engineLifeRemaining: { type: Type.NUMBER },
+                explosionRisk: { type: Type.NUMBER },
+                failureProbability: { type: Type.NUMBER },
+                riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High", "Critical"] },
+                risks: { type: Type.ARRAY, items: { type: Type.STRING } },
+                recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+                summary: { type: Type.STRING }
+              },
+              required: ["estimatedLifespan", "engineLifeRemaining", "explosionRisk", "failureProbability", "riskLevel", "risks", "recommendations", "summary"]
             }
-          });
-          
-          const text = response.text;
-          if (!text) throw new Error("Gemini returned an empty response");
-          console.log("[AI] Gemini analysis successful.");
-          return res.json(JSON.parse(text));
-        }
+          }
+        });
+        
+        const text = response.text;
+        if (!text) throw new Error("Gemini returned an empty response");
+        console.log("[AI] Gemini analysis successful.");
+        return res.json(JSON.parse(text));
 
       } catch (error: any) {
         console.error("[AI] Analysis Error:", error);
