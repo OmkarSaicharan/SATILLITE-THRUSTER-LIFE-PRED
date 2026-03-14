@@ -54,7 +54,7 @@ export interface HistoryItem {
 export async function analyzeSatelliteRisk(data: SatelliteData): Promise<PredictionResult> {
   try {
     // Call the backend for Groq analysis
-    const analyzeResponse = await fetch("/api/analyze", {
+    const analyzeResponse = await fetch(`${window.location.origin}/api/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data }),
@@ -76,7 +76,7 @@ export async function analyzeSatelliteRisk(data: SatelliteData): Promise<Predict
 
     // Save to history via backend
     try {
-      const saveResponse = await fetch("/api/save-prediction", {
+      const saveResponse = await fetch(`${window.location.origin}/api/save-prediction`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: data.name, ...result }),
@@ -96,13 +96,13 @@ export async function analyzeSatelliteRisk(data: SatelliteData): Promise<Predict
 }
 
 export async function fetchHistory(): Promise<HistoryItem[]> {
-  const response = await fetch("/api/history");
+  const response = await fetch(`${window.location.origin}/api/history`);
   if (!response.ok) throw new Error("Failed to fetch history");
   return response.json();
 }
 
 export async function deleteHistoryItem(id: number): Promise<void> {
-  const response = await fetch(`/api/history/${id}`, {
+  const response = await fetch(`${window.location.origin}/api/history/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) throw new Error("Failed to delete history item");
