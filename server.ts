@@ -89,11 +89,18 @@ async function startServer() {
 
     // API route for AI analysis (Supports Groq or Gemini)
     apiRouter.post("/analyze", async (req, res) => {
-      console.log("Received analysis request for:", req.body?.data?.name);
+      const satelliteName = req.body?.data?.name || "Unknown Satellite";
+      console.log(`[AI] Received analysis request for: ${satelliteName}`);
+      
+      // Log presence of API keys (but not the keys themselves)
+      const hasGroq = !!process.env.GROQ_API_KEY;
+      const hasGemini = !!process.env.GEMINI_API_KEY;
+      console.log(`[AI] API Keys check - Groq: ${hasGroq}, Gemini: ${hasGemini}`);
+
       try {
         const { data } = req.body;
         if (!data) {
-          console.error("No data provided in request body");
+          console.error("[AI] No data provided in request body");
           return res.status(400).json({ error: "No data provided" });
         }
         
@@ -101,13 +108,15 @@ async function startServer() {
         const gemini = getGemini();
 
         if (!groq && !gemini) {
+          console.error("[AI] No AI provider configured. Missing GROQ_API_KEY and GEMINI_API_KEY.");
           return res.status(500).json({ 
-            error: "No AI provider configured. Please set GROQ_API_KEY or GEMINI_API_KEY in your environment." 
+            error: "No AI provider configured. Please set GEMINI_API_KEY in your Vercel/Environment settings." 
           });
         }
 
         // Priority 1: Groq
         if (groq) {
+          console.log("[AI] Attempting analysis with Groq...");
           try {
             const completion = await groq.chat.completions.create({
               messages: [
@@ -126,18 +135,20 @@ async function startServer() {
             
             const content = completion.choices[0]?.message?.content;
             if (!content) throw new Error("Groq returned an empty response");
+            console.log("[AI] Groq analysis successful.");
             return res.json(JSON.parse(content));
           } catch (e) {
-            console.error("Groq attempt failed:", e);
+            console.error("[AI] Groq attempt failed:", e);
             if (!gemini) throw e;
-            // Fallback to Gemini if Groq fails and Gemini is available
+            console.log("[AI] Falling back to Gemini...");
           }
         }
 
         // Priority 2: Gemini
         if (gemini) {
+          console.log("[AI] Attempting analysis with Gemini...");
           const response = await gemini.models.generateContent({
-            model: "gemini-3.1-pro-preview",
+            model: "gemini-2.0-flash", // Using a more widely available model
             contents: `Analyze satellite data for ${data.name}. Return JSON: estimatedLifespan, engineLifeRemaining, explosionRisk, failureProbability, riskLevel (Low/Medium/High/Critical), risks[], recommendations[], summary. Data: ${JSON.stringify(data)}`,
             config: {
               responseMimeType: "application/json",
@@ -160,12 +171,17 @@ async function startServer() {
           
           const text = response.text;
           if (!text) throw new Error("Gemini returned an empty response");
+          console.log("[AI] Gemini analysis successful.");
           return res.json(JSON.parse(text));
         }
 
-      } catch (error) {
-        console.error("Analysis Error:", error);
-        res.status(500).json({ error: "Failed to analyze mission risk using AI" });
+      } catch (error: any) {
+        console.error("[AI] Analysis Error:", error);
+        const errorMessage = error?.message || "Unknown AI service error";
+        res.status(500).json({ 
+          error: "Failed to analyze mission risk using AI",
+          details: errorMessage
+        });
       }
     });
 
